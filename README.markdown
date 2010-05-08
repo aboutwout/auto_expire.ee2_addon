@@ -10,6 +10,6 @@ This version of Auto Expire is developed for ExpressionEngine 2.x
 
 ## Usage
 
-After installing Auto Expire it's settings are available at `Channel Administration › Channel Management › Channel Preferences › Channel Posting Preferences`. I know it's a bit hidden, but it seemed the most logical place to put them to me.
+After installing Auto Expire you alter the channel settings on the extension settings page.
 
 The textfield is the number of minutes|hours|days|weeks|months|years to add to the entry date.
