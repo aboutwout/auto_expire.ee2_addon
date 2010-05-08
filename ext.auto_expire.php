@@ -96,7 +96,7 @@ class Auto_expire_ext
     }
     
     // now we can fetch the language file
-    $this->EE->lang->loadfile('auto_expire');
+//    $this->EE->lang->loadfile('auto_expire');
 
     $channel_query = $this->EE->db->query("SELECT channel_id, channel_title FROM exp_channels");
 
