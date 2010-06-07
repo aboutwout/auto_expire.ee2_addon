@@ -20,13 +20,14 @@ class Auto_expire_ext
   public $settings            = array();
   
   public $name                = 'Auto Expire';
-  public $version             = '2.0';
+  public $version             = 2.1;
   public $description         = "Automatically set an entry's expiration date.";
   public $settings_exist      = 'y';
   public $docs_url            = '';
   
   private $_time_diff         = false;
   private $_time_unit         = false;
+  private $status             = false;
   
   public $time_units          = array(
                                   1 => 'minutes',
@@ -104,6 +105,8 @@ class Auto_expire_ext
     
     foreach($channel_query->result() as $row) {
       
+      $statuses = $this->EE->db->query("SELECT status_id as id, status as name FROM exp_statuses s NATURAL JOIN exp_status_groups sg NATURAL JOIN exp_channels c WHERE c.channel_id = ".$row->channel_id);
+            
       $expire = $this->_fetch_preferences($row->channel_id);
       
       $channels[] = array(
@@ -111,6 +114,8 @@ class Auto_expire_ext
         'title' => $row->channel_title,
         'time_diff' => $expire['time_diff'],
         'time_unit' => $expire['time_unit'],
+        'status' => $expire['status'],
+        'statuses' => $statuses
       );
     }
     
@@ -125,12 +130,35 @@ class Auto_expire_ext
   // END settings_form
 
   /**
+  * Chekc if there are any expired entries and change the status if needed
+  */
+  function change_status_expired_entries()
+  {
+    $query = $this->EE->db->query("SELECT ae.channel_id, ae.status, s.status as status_name FROM exp_auto_expire ae LEFT JOIN exp_statuses s ON ae.status = s.status_id WHERE ae.status != 0");
+
+
+    if($query->num_rows() == 0) return false;
+    
+    foreach($query->result() as $row) {      
+           
+      $data = array(
+        'status' => $row->status_name
+      );
+      
+      $sql = $this->EE->db->update_string('exp_channel_titles', $data, "channel_id = '".$row->channel_id."' AND status != '".$row->status_name."' AND expiration_date <  ".time());
+            
+      $this->EE->db->query($sql);
+    }            
+  }
+
+  /**
   * Saves the auto expire settings.
   */
   function save_settings_form()
   {
     $time_diffs = $this->EE->input->post('time_diff');
     $time_units = $this->EE->input->post('time_unit');    
+    $statuses = $this->EE->input->post('status');    
 
     foreach($time_diffs as $channel_id => $value)
     {
@@ -138,7 +166,8 @@ class Auto_expire_ext
       $data = array(
         'channel_id' => $channel_id,
         'time_diff' => 0,
-        'time_unit' => 0
+        'time_unit' => 0,
+        'status' => 0
       );
        
       // Values have been set
@@ -146,9 +175,10 @@ class Auto_expire_ext
       {
         $data['time_diff'] = $time_diffs[$channel_id];
         $data['time_unit'] = $time_units[$channel_id];
+        $data['status'] = $statuses[$channel_id];
       }
       
-      $this->EE->db->query("INSERT INTO exp_auto_expire (channel_id, time_diff, time_unit) VALUES (".$channel_id.", ".$data['time_diff'].", ".$data['time_unit'].") ON DUPLICATE KEY UPDATE channel_id=VALUES(channel_id), time_diff=VALUES(time_diff), time_unit=VALUES(time_unit)");
+      $this->EE->db->query("INSERT INTO exp_auto_expire (channel_id, time_diff, time_unit, status) VALUES (".$channel_id.", ".$data['time_diff'].", ".$data['time_unit'].", ".$data['status'].") ON DUPLICATE KEY UPDATE channel_id=VALUES(channel_id), time_diff=VALUES(time_diff), time_unit=VALUES(time_unit), status=VALUES(status)");
     }
     
     
@@ -163,15 +193,17 @@ class Auto_expire_ext
     
     $return = array(
       'time_diff' => 0,
-      'time_unit' => 0
+      'time_unit' => 0,
+      'status' => 0
     );
     
-    $query = $this->EE->db->query("SELECT time_diff, time_unit FROM exp_auto_expire WHERE channel_id = $channel_id");
+    $query = $this->EE->db->query("SELECT time_diff, time_unit, status FROM exp_auto_expire WHERE channel_id = $channel_id");
     
     if($query->num_rows() > 0) {
       
       $return['time_diff'] = $query->row('time_diff');
       $return['time_unit']  = $query->row('time_unit');
+      $return['status']  = $query->row('status');
       
     }
     
@@ -192,7 +224,7 @@ class Auto_expire_ext
     
     if( ! $channel_id ) return false;
     
-    $query = $this->EE->db->query("SELECT channel_id, time_diff, time_unit FROM exp_auto_expire WHERE channel_id = {$channel_id}");
+    $query = $this->EE->db->query("SELECT channel_id, time_diff, time_unit, status FROM exp_auto_expire WHERE channel_id = {$channel_id}");
     
     // If no settings have been set for this channel, unset variables and return false
     if($query->num_rows() === 0) {
@@ -204,6 +236,7 @@ class Auto_expire_ext
         
     $this->_time_diff = $query->row('time_diff');
     $this->_time_unit = $query->row('time_unit');    
+    $this->_status = $query->row('status');    
     
     return ! $this->_time_diff || ! $this->_time_unit ? false : true;
     
@@ -219,7 +252,8 @@ class Auto_expire_ext
 
     // hooks array
     $hooks = array(
-      'submit_new_entry_start' => 'set_expiration_date'
+      'submit_new_entry_start' => 'set_expiration_date',
+      'sessions_end' => 'change_status_expired_entries'
     );
 
     // insert hooks and methods
@@ -242,7 +276,7 @@ class Auto_expire_ext
 
     // add extension table
     $sql[] = 'DROP TABLE IF EXISTS `exp_auto_expire`';
-    $sql[] = "CREATE TABLE `exp_auto_expire` (`id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY, `channel_id` INT NOT NULL UNIQUE KEY, `time_diff` INT NOT NULL, `time_unit` INT NOT NULL)";
+    $sql[] = "CREATE TABLE `exp_auto_expire` (`id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY, `channel_id` INT NOT NULL UNIQUE KEY, `time_diff` INT NOT NULL, `time_unit` INT NOT NULL, `status` INT NOT NULL)";
 
     // run all sql queries
     foreach ($sql as $query) {
@@ -264,12 +298,16 @@ class Auto_expire_ext
     {
       return FALSE;
     }
+    
+    if($current < $this->version) {
+      $this->EE->db->query('ALTER TABLE `exp_auto_expire` ADD COLUMN `status` INT AFTER `time_unit`');
+    }
 
     // init data array
     $data = array();
 
     // Add version to data array
-    $data['version'] = $this->version;
+    $data['version'] = $this->version;    
 
     // Update records using data array
     $this->EE->db->where('class', get_class($this));

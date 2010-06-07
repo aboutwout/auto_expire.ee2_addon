@@ -15,6 +15,12 @@ $lang = array(
 	'pref_auto_expire' =>
 	"Auto expire entries after",
 
+  'pref_change_status' =>
+  "On expiration, change status to:",
+
+  'pref_dont_change_status' =>
+  "Do not change status",
+
   'select_period' =>
   "Select period...",
   
