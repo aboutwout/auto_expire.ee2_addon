@@ -20,7 +20,7 @@ class Auto_expire_ext
   public $settings            = array();
   
   public $name                = 'Auto Expire';
-  public $version             = 2.2;
+  public $version             = 2.3;
   public $description         = "Automatically set an entry's expiration date.";
   public $settings_exist      = 'y';
   public $docs_url            = '';
@@ -275,7 +275,6 @@ class Auto_expire_ext
 
     // hooks array
     $hooks = array(
-//      'submit_new_entry_start' => 'set_expiration_date',
       'entry_submission_start' => 'set_expiration_date',
       'sessions_end' => 'change_status_expired_entries'
     );
@@ -323,24 +322,7 @@ class Auto_expire_ext
       return FALSE;
     }
     
-    if($current < $this->version) {
-      $this->EE->db->query('ALTER TABLE `exp_auto_expire` ADD COLUMN `status` INT AFTER `time_unit`');
-      
-      // insert hooks and methods
-      $data = array(
-        'class'		=> get_class($this),
-        'method'	=> 'change_status_expired_entries',
-        'hook'		=> 'sessions_end',
-        'priority'	=> 1,
-        'version'	=> $this->version,
-        'enabled'	=> 'y',
-        'settings'	=> ''
-      );
-
-      // insert in database
-      $this->EE->db->insert('exp_extensions', $data);
-      
-    }
+    if($current < $this->version) { }
 
     // init data array
     $data = array();
