@@ -63,9 +63,33 @@ class Auto_expire_ext
   /**
   * Set the expiration date if needed
   */
-  function set_expiration_date()
+  function set_expiration_date($channel_id=0, $autosave=false)
   {
+    
+    if(!$channel_id || $autosave === true) return;
+    
+    $expiration_date_in = $this->EE->api_channel_entries->data['expiration_date'];
         
+    // channel has auto expire settings set and has no expiration date set
+    if ($this->_auto_expire_channel($channel_id) && !$expiration_date_in) {
+
+      $entry_date = new DateTime($this->EE->input->post('entry_date'));
+      $expiration_date = clone $entry_date;
+      
+      $expiration_date->modify('+'.$this->_time_diff.' '.$this->time_units[$this->_time_unit]);
+      
+      $this->EE->api_channel_entries->data['expiration_date'] = $expiration_date->format('Y-m-d H:i');
+      
+    }
+
+  }
+  // END set_expiration_date
+  
+  /**
+  * Set the expiration date if needed
+  */
+  function set_expiration_date_saef()
+  {
     $channel_id = $this->EE->input->post('channel_id');
     $expiration_date_in = $_POST['expiration_date'];
         
@@ -241,8 +265,7 @@ class Auto_expire_ext
     return ! $this->_time_diff || ! $this->_time_unit ? false : true;
     
   }
-  // END	_auto_expire_channel
-
+  // END	_auto_expire_channel	
 	
 	// --------------------------------
 	//  Activate Extension
@@ -252,7 +275,8 @@ class Auto_expire_ext
 
     // hooks array
     $hooks = array(
-      'submit_new_entry_start' => 'set_expiration_date',
+//      'submit_new_entry_start' => 'set_expiration_date',
+      'entry_submission_start' => 'set_expiration_date',
       'sessions_end' => 'change_status_expired_entries'
     );
 
