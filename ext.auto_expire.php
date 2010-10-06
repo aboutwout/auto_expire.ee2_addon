@@ -169,7 +169,7 @@ class Auto_expire_ext
         'status' => $row->status_name
       );
       
-      $sql = $this->EE->db->update_string('exp_channel_titles', $data, "channel_id = '".$row->channel_id."' AND status != '".$row->status_name."' AND expiration_date <  ".time());
+      $sql = $this->EE->db->update_string('exp_channel_titles', $data, "channel_id = '".$row->channel_id."' AND status != '".$row->status_name."' AND expiration_date != '0' AND expiration_date <  ".time());
             
       $this->EE->db->query($sql);
     }            
