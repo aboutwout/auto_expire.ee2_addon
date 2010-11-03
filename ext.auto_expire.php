@@ -68,7 +68,7 @@ class Auto_expire_ext
     
     if(!$channel_id || $autosave === true) return;
     
-    $expiration_date_in = $this->EE->api_channel_entries->data['expiration_date'];
+    $expiration_date_in = isset($this->EE->api_channel_entries->data['expiration_date']) ? $this->EE->api_channel_entries->data['expiration_date'] : false;
         
     // channel has auto expire settings set and has no expiration date set
     if ($this->_auto_expire_channel($channel_id) && !$expiration_date_in) {
