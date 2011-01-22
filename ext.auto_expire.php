@@ -20,7 +20,7 @@ class Auto_expire_ext
   public $settings            = array();
   
   public $name                = 'Auto Expire';
-  public $version             = 2.3;
+  public $version             = 2.4;
   public $description         = "Automatically set an entry's expiration date.";
   public $settings_exist      = 'y';
   public $docs_url            = '';
@@ -118,22 +118,19 @@ class Auto_expire_ext
   */
   function settings_form($current)
   {
-    
+    $this->settings = $current;
+        
     if($this->EE->input->post('time_diff') && $this->EE->input->post('time_unit')) {
       $this->save_settings_form();
-      $this->EE->javascript->output('$.ee_notice("Settings saved!", {type : "success", open : true})');
     }
-    
-    // now we can fetch the language file
-//    $this->EE->lang->loadfile('auto_expire');
-
-    $channel_query = $this->EE->db->query("SELECT channel_id, channel_title FROM exp_channels");
+        
+    $channel_query = $this->EE->db->select('channel_id, channel_title')->where('site_id', $this->site_id)->get('channels');
 
     $channels = array();
     
     foreach($channel_query->result() as $row) {
       
-      $statuses = $this->EE->db->query("SELECT status_id as id, status as name FROM exp_statuses s NATURAL JOIN exp_status_groups sg NATURAL JOIN exp_channels c WHERE c.channel_id = ".$row->channel_id);
+      $statuses = $this->EE->db->query("SELECT status_id as id, status as name FROM exp_statuses s NATURAL JOIN exp_status_groups sg NATURAL JOIN exp_channels c WHERE c.channel_id = ".$row->channel_id);      
             
       $expire = $this->_fetch_preferences($row->channel_id);
       
@@ -158,7 +155,7 @@ class Auto_expire_ext
   // END settings_form
 
   /**
-  * Chekc if there are any expired entries and change the status if needed
+  * Check if there are any expired entries and change the status if needed
   */
   function change_status_expired_entries()
   {
@@ -184,36 +181,35 @@ class Auto_expire_ext
   */
   function save_settings_form()
   {
-    $time_diffs = $this->EE->input->post('time_diff');
-    $time_units = $this->EE->input->post('time_unit');
-    $which = $this->EE->input->post('which');
-    $at_end = $this->EE->input->post('at_end');
-    $statuses = $this->EE->input->post('status');    
+    
+    $allowed_prefs = array('which', 'time_diff', 'time_unit', 'at_end', 'status');
 
-    echo "<pre>".print_r($_POST, true)."</pre>";
-    exit;
-
-    foreach($time_diffs as $channel_id => $value)
+    foreach($allowed_prefs as $key => $pref)
     {
-      // Default values
-      $data = array(
-        'channel_id' => $channel_id,
-        'time_diff' => 0,
-        'time_unit' => 0,
-        'status' => 0
-      );
-       
-      // Values have been set
-      if(is_numeric($time_diffs[$channel_id]) && $time_diffs[$channel_id] && is_numeric($time_units[$channel_id]) && $time_units[$channel_id])
+      
+      foreach($_POST[$pref] as $channel => $val)
       {
-        $data['time_diff'] = $time_diffs[$channel_id];
-        $data['time_unit'] = $time_units[$channel_id];
-        $data['status'] = $statuses[$channel_id];
+        
+        // If time difference is not numeric, set it to '0'
+        if( $pref === 'time_diff' && ! is_numeric($val) )
+        {
+          $val = 0;
+        }
+        
+        $this->settings[$this->site_id][$channel][$pref] = $val;
+        
       }
       
-      $this->EE->db->query("INSERT INTO exp_auto_expire (channel_id, time_diff, time_unit, status) VALUES (".$channel_id.", ".$data['time_diff'].", ".$data['time_unit'].", ".$data['status'].") ON DUPLICATE KEY UPDATE channel_id=VALUES(channel_id), time_diff=VALUES(time_diff), time_unit=VALUES(time_unit), status=VALUES(status)");
     }
     
+    $data = array(
+      'settings' => serialize($this->settings)
+    );
+    
+    // Update the settings
+    $this->EE->db->where('class', get_class($this))->update('extensions', $data);
+    
+    $this->EE->javascript->output('$.ee_notice("Settings saved!", {type : "success"})');
     
   }
   // END save_settings_form
@@ -221,15 +217,23 @@ class Auto_expire_ext
   
   function _fetch_preferences($channel_id)
   {
-    
+
     if( !$channel_id ) return false;
     
-    $return = array(
+    $prefs = array(
       'time_diff' => 0,
       'time_unit' => 0,
       'status' => 0
     );
+        
+    if(isset($this->settings[$this->site_id]) && isset($this->settings[$this->site_id][$channel_id]))
+    {
+      return $this->settings[$this->site_id][$channel_id];
+    }
+
+    return $prefs;
     
+/*    
     $query = $this->EE->db->query("SELECT time_diff, time_unit, status FROM exp_auto_expire WHERE channel_id = $channel_id");
     
     if($query->num_rows() > 0) {
@@ -241,7 +245,7 @@ class Auto_expire_ext
     }
     
     return $return;
-    
+*/
   }
   // END _fetch_preferences
   
@@ -257,20 +261,14 @@ class Auto_expire_ext
     
     if( ! $channel_id ) return false;
     
-    $query = $this->EE->db->query("SELECT channel_id, time_diff, time_unit, status FROM exp_auto_expire WHERE channel_id = {$channel_id}");
+    $prefs = $this->_fetch_preferences($channel_id);
     
-    // If no settings have been set for this channel, unset variables and return false
-    if($query->num_rows() === 0) {
-      $this->_time_diff = false;
-      $this->_time_unit = false;
+    if($prefs['time_diff'] === 0) return false;
 
-      return false;
-    }
-        
-    $this->_time_diff = $query->row('time_diff');
-    $this->_time_unit = $query->row('time_unit');    
-    $this->_status = $query->row('status');    
-    
+    $this->_time_diff = $prefs('time_diff');
+    $this->_time_unit = $prefs('time_unit');    
+    $this->_status = $prefs('status');    
+
     return ! $this->_time_diff || ! $this->_time_unit ? false : true;
     
   }
