@@ -13,7 +13,7 @@ $lang = array(
 	"Auto expire settings",
 	
 	'pref_auto_expire' =>
-	"Auto expire entries after",
+	"expire entries after",
 
   'pref_change_status' =>
   "On expiration, change status to:",

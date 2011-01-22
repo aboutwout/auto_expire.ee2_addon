@@ -25,6 +25,8 @@ class Auto_expire_ext
   public $settings_exist      = 'y';
   public $docs_url            = '';
   
+  public $site_id             = 1;
+  
   private $_time_diff         = false;
   private $_time_unit         = false;
   private $status             = false;
@@ -56,6 +58,8 @@ class Auto_expire_ext
 	  
 		$this->settings = $settings;
 		
+		$this->site_id = $this->EE->config->item('site_id');
+    
 	}
 	// END Auto_expire_ext
 	
@@ -181,8 +185,13 @@ class Auto_expire_ext
   function save_settings_form()
   {
     $time_diffs = $this->EE->input->post('time_diff');
-    $time_units = $this->EE->input->post('time_unit');    
+    $time_units = $this->EE->input->post('time_unit');
+    $which = $this->EE->input->post('which');
+    $at_end = $this->EE->input->post('at_end');
     $statuses = $this->EE->input->post('status');    
+
+    echo "<pre>".print_r($_POST, true)."</pre>";
+    exit;
 
     foreach($time_diffs as $channel_id => $value)
     {
