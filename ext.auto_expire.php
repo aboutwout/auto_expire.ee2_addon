@@ -89,28 +89,6 @@ class Auto_expire_ext
   }
   // END set_expiration_date
   
-  /**
-  * Set the expiration date if needed
-  */
-  function set_expiration_date_saef()
-  {
-    $channel_id = $this->EE->input->post('channel_id');
-    $expiration_date_in = $_POST['expiration_date'];
-        
-    // channel has auto expire settings set and has no expiration date set
-    if ($this->_auto_expire_channel($channel_id) && !$expiration_date_in) {
-
-      $entry_date = new DateTime($this->EE->input->post('entry_date'));
-      $expiration_date = clone $entry_date;
-      
-      $expiration_date->modify('+'.$this->_time_diff.' '.$this->time_units[$this->_time_unit]);
-      
-      $_POST['expiration_date'] = $expiration_date->format('Y-m-d H:i');
-    }
-
-  }
-  // END set_expiration_date
-  
   
   /**
   * Modifies control panel html by adding the Auto Expire
@@ -159,8 +137,8 @@ class Auto_expire_ext
   */
   function change_status_expired_entries()
   {
+    
     $query = $this->EE->db->query("SELECT ae.channel_id, ae.status, s.status as status_name FROM exp_auto_expire ae LEFT JOIN exp_statuses s ON ae.status = s.status_id WHERE ae.status != 0");
-
 
     if($query->num_rows() == 0) return false;
     
