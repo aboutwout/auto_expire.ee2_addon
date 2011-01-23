@@ -58,7 +58,7 @@ class Auto_expire_ext
 	  
 		$this->settings = $settings;
 		
-		$this->site_id = $this->EE->config->item('site_id');
+    $this->site_id = $this->EE->config->item('site_id');
     
 	}
 	// END Auto_expire_ext
@@ -138,20 +138,31 @@ class Auto_expire_ext
   function change_status_expired_entries()
   {
     
-    $query = $this->EE->db->query("SELECT ae.channel_id, ae.status, s.status as status_name FROM exp_auto_expire ae LEFT JOIN exp_statuses s ON ae.status = s.status_id WHERE ae.status != 0");
-
-    if($query->num_rows() == 0) return false;
+    $statuses = array();
     
-    foreach($query->result() as $row) {      
-           
+    $status_query = $this->EE->db->get('statuses'); 
+    
+    foreach($status_query->result() as $row)
+    {
+      $statuses[$row->status_id] = $row->status;
+    }
+
+    if( ! isset($this->settings[$this->site_id]) ) return false;
+
+    foreach( $this->settings[$this->site_id] as $channel => $prefs )
+    {
+
+      if( ! isset($prefs['status']) || $prefs['status'] == 0 ) continue; 
+
+      $status = $statuses[$prefs['status']];
+
       $data = array(
-        'status' => $row->status_name
+        'status' => $status
       );
       
-      $sql = $this->EE->db->update_string('exp_channel_titles', $data, "channel_id = '".$row->channel_id."' AND status != '".$row->status_name."' AND expiration_date != '0' AND expiration_date <  ".time());
-            
-      $this->EE->db->query($sql);
-    }            
+      $this->EE->db->where("channel_id = '".$channel."' AND status != '".$status."' AND expiration_date != '0' AND expiration_date < ".time())->update('channel_titles', $data);
+    }
+    
   }
 
   /**
@@ -164,6 +175,8 @@ class Auto_expire_ext
 
     foreach($allowed_prefs as $key => $pref)
     {
+      
+      if( ! isset($_POST[$pref]) ) continue;
       
       foreach($_POST[$pref] as $channel => $val)
       {
@@ -201,9 +214,12 @@ class Auto_expire_ext
     $prefs = array(
       'time_diff' => 0,
       'time_unit' => 0,
-      'status' => 0
+      'status' => 0,
+      'end_at' => 0,      
+      'which' => ''
+
     );
-        
+            
     if(isset($this->settings[$this->site_id]) && isset($this->settings[$this->site_id][$channel_id]))
     {
       return $this->settings[$this->site_id][$channel_id];
@@ -211,19 +227,6 @@ class Auto_expire_ext
 
     return $prefs;
     
-/*    
-    $query = $this->EE->db->query("SELECT time_diff, time_unit, status FROM exp_auto_expire WHERE channel_id = $channel_id");
-    
-    if($query->num_rows() > 0) {
-      
-      $return['time_diff'] = $query->row('time_diff');
-      $return['time_unit']  = $query->row('time_unit');
-      $return['status']  = $query->row('status');
-      
-    }
-    
-    return $return;
-*/
   }
   // END _fetch_preferences
   
@@ -243,9 +246,9 @@ class Auto_expire_ext
     
     if($prefs['time_diff'] === 0) return false;
 
-    $this->_time_diff = $prefs('time_diff');
-    $this->_time_unit = $prefs('time_unit');    
-    $this->_status = $prefs('status');    
+    $this->_time_diff = $prefs['time_diff'];
+    $this->_time_unit = $prefs['time_unit'];    
+    $this->_status = $prefs['status'];    
 
     return ! $this->_time_diff || ! $this->_time_unit ? false : true;
     
@@ -282,14 +285,8 @@ class Auto_expire_ext
       $this->EE->db->insert('exp_extensions', $data);
     }
 
-    // add extension table
-    $sql[] = 'DROP TABLE IF EXISTS `exp_auto_expire`';
-    $sql[] = "CREATE TABLE `exp_auto_expire` (`id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY, `channel_id` INT NOT NULL UNIQUE KEY, `time_diff` INT NOT NULL, `time_unit` INT NOT NULL, `status` INT NOT NULL)";
-
     // run all sql queries
-    foreach ($sql as $query) {
-      $this->EE->db->query($query);
-    }
+    $this->EE->db->query("'DROP TABLE IF EXISTS `exp_auto_expire`");
 
     return true;
 	}
@@ -306,18 +303,41 @@ class Auto_expire_ext
     {
       return FALSE;
     }
-    
-    if($current < $this->version) { }
 
     // init data array
     $data = array();
+    $settings = array();
+    
+    if($current < 2.4)
+    {
+      $db_settings = $this->EE->db->get('auto_expire');
+      
+      foreach($db_settings->result() as $row)
+      {
+        $settings[$this->site_id][$row->channel_id] = array(
+          'time_diff' => $row->time_diff,
+          'time_unit' => $row->time_unit,
+          'status' => $row->status,
+          'end_at' => 0,          
+          'which' => ''                
+        );
+      }
+      
+      // drop the database
+      $this->EE->db->query("DROP TABLE IF EXISTS `exp_auto_expire`");
+
+    }
 
     // Add version to data array
-    $data['version'] = $this->version;    
+    $data['version'] = $this->version;
+    $data['settings'] = serialize($settings);
+
 
     // Update records using data array
-    $this->EE->db->where('class', get_class($this));
-    $this->EE->db->update('exp_extensions', $data);
+    $this->EE->db->where('class', get_class($this))->update('extensions', $data);
+    
+    return TRUE;
+    
   }
   // END update_extension
 
@@ -325,10 +345,13 @@ class Auto_expire_ext
 	//  Disable Extension
 	// --------------------------------
 	function disable_extension()
-	{		
+	{	
+	  // Drop database if it exists (db removed in v 2.4)
+	  $this->EE->db->query("DROP TABLE IF EXISTS `exp_auto_expire`");
+	  
     // Delete records
     $this->EE->db->where('class', get_class($this));
-    $this->EE->db->delete('exp_extensions');
+    $this->EE->db->delete('extensions');
   }
   // END disable_extension
 

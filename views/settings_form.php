@@ -13,11 +13,10 @@
 }
 
 table.nostyles td:last-child { border-right:none !important; }
-table.nostyle tbody tr td {vertical-align:top !important;}
+table.nostyles tbody tr td {vertical-align:top !important;}
 .nostyles div {position:relative;}
 .nostyles div label {font-weight:normal;margin-bottom:.5em;display:block;}
 .nostyles label input[type=radio] {margin-right:5px;position:relative;top:1px;}
-.nostyles div b {position:absolute;left:-16%;top:20px;font:bold 12px/1 Georgia;font-style:italic;}
 </style>
 <script>
 $(function() {});
@@ -28,7 +27,7 @@ $(function() {});
   <?=  form_open('C=addons_extensions&M=extension_settings&file=auto_expire', array(), array('file' => 'auto_expire')) ?>
   <table class="mainTable padTable" border="0" cellspacing="0" cellpadding="0">
     <thead>
-      <tr><th style="width:25%;" class="header">Channel</th><th>Settings</th></tr>
+      <tr><th style="width:140px;" class="header">Channel</th><th>Settings</th></tr>
     </thead>
   <tbody>
   <?php
@@ -36,13 +35,13 @@ $(function() {});
     foreach($channels as $channel) :
   ?>
     <tr class="<?=($i%2) ? 'even' : 'odd';?>">
-      <td class="tableCellOne" style="width:25%;"><b><?=$channel['title']?></b></td>
-      <td class="tableCellOne" style="width:75%;">
+      <td class="tableCellOne"><b><?=$channel['title']?></b></td>
+      <td class="tableCellOne">
         <table class="nostyles">
           <tr>
             <td style="width:60%;border-right:1px dotted #D0D7DF;">
               <div style="margin-bottom:1em">
-                <label><input type="radio" name="which[<?=$channel['id']?>]" value="diff" checked="checked" /><?=lang('pref_auto_expire')?>...</label>
+                <label><!--<input type="radio" name="which[<?=$channel['id']?>]" value="diff" checked="checked" />--><?=lang('pref_auto_expire')?>...</label>
                 <input dir="ltr" style="width:20%;margin-right:5px" type="text" name="time_diff[<?=$channel['id']?>]" id="time_diff" value="<?=$channel['time_diff']?>" size="" maxlength="" class="" tabindex="<?=++$j?>" /> 
                 <select name="time_unit[<?=$channel['id']?>]" class="select" style="width:120px" tabindex="<?=++$j?>">
                   <option value="0"><?=lang('select_period')?></option>
@@ -51,6 +50,7 @@ $(function() {});
             <?php endforeach; ?>
                 </select>
               </div>
+<!--              
               <div style="margin-bottom:.5em">
                 <label><input type="radio" name="which[<?=$channel['id']?>]" value="end" />expire at the end of...</label>
                 <select name="at_end[<?=$channel['id']?>]" class="select" style="width:120px" >
@@ -61,6 +61,7 @@ $(function() {});
                   <option value="year">this year</option>
                 </select>
             </div>
+-->
             </td>
             <td style="width:40%;">
               <div style="margin-bottom:.5em"><?=lang('pref_change_status')?></div>
