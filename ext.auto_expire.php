@@ -20,7 +20,7 @@ class Auto_expire_ext
   public $settings            = array();
   
   public $name                = 'Auto Expire';
-  public $version             = 2.4;
+  public $version             = 2.4.1;
   public $description         = "Automatically set an entry's expiration date.";
   public $settings_exist      = 'y';
   public $docs_url            = '';
@@ -285,8 +285,8 @@ class Auto_expire_ext
       $this->EE->db->insert('exp_extensions', $data);
     }
 
-    // run all sql queries
-    $this->EE->db->query("'DROP TABLE IF EXISTS `exp_auto_expire`");
+    $this->EE->load->dbforge();
+    $this->EE->dbforge->drop_table('auto_expire');
 
     return true;
 	}
@@ -323,8 +323,8 @@ class Auto_expire_ext
         );
       }
       
-      // drop the database
-      $this->EE->db->query("DROP TABLE IF EXISTS `exp_auto_expire`");
+      $this->EE->load->dbforge();
+      $this->EE->dbforge->drop_table('auto_expire');
 
     }
 
@@ -346,8 +346,8 @@ class Auto_expire_ext
 	// --------------------------------
 	function disable_extension()
 	{	
-	  // Drop database if it exists (db removed in v 2.4)
-	  $this->EE->db->query("DROP TABLE IF EXISTS `exp_auto_expire`");
+    $this->EE->load->dbforge();
+    $this->EE->dbforge->drop_table('auto_expire');
 	  
     // Delete records
     $this->EE->db->where('class', get_class($this));
