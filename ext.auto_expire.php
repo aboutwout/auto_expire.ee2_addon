@@ -20,7 +20,7 @@ class Auto_expire_ext
   public $settings            = array();
   
   public $name                = 'Auto Expire';
-  public $version             = 2.4.1;
+  public $version             = '2.4.1';
   public $description         = "Automatically set an entry's expiration date.";
   public $settings_exist      = 'y';
   public $docs_url            = '';
