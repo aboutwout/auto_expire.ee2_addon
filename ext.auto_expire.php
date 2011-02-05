@@ -68,14 +68,15 @@ class Auto_expire_ext
   * Set the expiration date if needed
   */
   function set_expiration_date($channel_id=0, $autosave=false)
-  {
+  {    
     
     if(!$channel_id || $autosave === true) return;
-    
+       
     $expiration_date_in = isset($this->EE->api_channel_entries->data['expiration_date']) ? $this->EE->api_channel_entries->data['expiration_date'] : false;
         
     // channel has auto expire settings set and has no expiration date set
-    if ($this->_auto_expire_channel($channel_id) && !$expiration_date_in) {
+    if ( $this->_auto_expire_channel($channel_id) && ! $expiration_date_in )
+    {
 
       $entry_date = new DateTime($this->EE->input->post('entry_date'));
       $expiration_date = clone $entry_date;
@@ -83,6 +84,34 @@ class Auto_expire_ext
       $expiration_date->modify('+'.$this->_time_diff.' '.$this->time_units[$this->_time_unit]);
       
       $this->EE->api_channel_entries->data['expiration_date'] = $expiration_date->format('Y-m-d H:i');
+      $_POST['expiration_date'] = $expiration_date->format('Y-m-d H:i');
+      
+    }
+
+  }
+  // END set_expiration_date
+  
+  
+  /**
+  * Set the expiration date if needed
+  */
+  function safecracker_submit_entry_start($OBJ=false)
+  {
+        
+    if( ! $OBJ ) return;
+       
+    $expiration_date_in = $this->EE->input->post('expiration_date') ? $this->EE->input->post('expiration_date') : false;
+        
+    // channel has auto expire settings set and has no expiration date set
+    if ( $this->_auto_expire_channel($OBJ->channel['channel_id']) && ! $expiration_date_in )
+    {
+
+      $entry_date = new DateTime($this->EE->input->post('entry_date'));
+      $expiration_date = clone $entry_date;
+      
+      $expiration_date->modify('+'.$this->_time_diff.' '.$this->time_units[$this->_time_unit]);
+      
+      $_POST['expiration_date'] = $expiration_date->format('Y-m-d H:i');
       
     }
 
@@ -264,6 +293,7 @@ class Auto_expire_ext
     // hooks array
     $hooks = array(
       'entry_submission_start' => 'set_expiration_date',
+      'safecracker_submit_entry_start' => 'safecracker_submit_entry_start',
       'sessions_end' => 'change_status_expired_entries'
     );
 
