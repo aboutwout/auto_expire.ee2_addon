@@ -20,7 +20,7 @@ class Auto_expire_ext
   public $settings            = array();
   
   public $name                = 'Auto Expire';
-  public $version             = 2.5;
+  public $version             = 2.6;
   public $description         = "Automatically set an entry's expiration date.";
   public $settings_exist      = 'y';
   public $docs_url            = '';
@@ -72,20 +72,18 @@ class Auto_expire_ext
     
     if(!$channel_id || $autosave === true) return;
        
-    $expiration_date_in = isset($this->EE->api_channel_entries->data['expiration_date']) ? $this->EE->api_channel_entries->data['expiration_date'] : false;
-        
+    $expiration_date_in = $this->EE->input->post('expiration_date') ? $this->EE->input->post('expiration_date') : false;
+    $entry_date = $this->EE->input->post('entry_date');
+    
     // channel has auto expire settings set and has no expiration date set
     if ( $this->_auto_expire_channel($channel_id) && ! $expiration_date_in )
     {
-
-      $entry_date = new DateTime($this->EE->input->post('entry_date'));
-      $expiration_date = clone $entry_date;
+      $entry_date = is_numeric($entry_date) ? $entry_date : $this->EE->localize->convert_human_date_to_gmt($entry_date);
       
-      $expiration_date->modify('+'.$this->_time_diff.' '.$this->time_units[$this->_time_unit]);
+      $expiration_date = $this->_calc_expiration_date($entry_date);
       
-      $this->EE->api_channel_entries->data['expiration_date'] = $expiration_date->format('Y-m-d H:i');
-      $_POST['expiration_date'] = $expiration_date->format('Y-m-d H:i');
-      
+      $this->EE->api_channel_entries->data['expiration_date'] = $expiration_date;
+      $_POST['expiration_date'] = $expiration_date;      
     }
 
   }
@@ -97,26 +95,37 @@ class Auto_expire_ext
   */
   function safecracker_submit_entry_start($OBJ=false)
   {
-        
-    if( ! $OBJ ) return;
        
+    if( ! $OBJ ) return;
+              
     $expiration_date_in = $this->EE->input->post('expiration_date') ? $this->EE->input->post('expiration_date') : false;
-        
+                
     // channel has auto expire settings set and has no expiration date set
     if ( $this->_auto_expire_channel($OBJ->channel['channel_id']) && ! $expiration_date_in )
     {
-
-      $entry_date = new DateTime($this->EE->input->post('entry_date'));
-      $expiration_date = clone $entry_date;
-      
-      $expiration_date->modify('+'.$this->_time_diff.' '.$this->time_units[$this->_time_unit]);
-      
-      $_POST['expiration_date'] = $expiration_date->format('Y-m-d H:i');
-      
+      $entry_date = $this->EE->input->post('entry_date') ? $this->EE->input->post('entry_date') : $this->EE->localize->now;
+      $_POST['expiration_date'] = $this->_calc_expiration_date($entry_date);
     }
 
   }
   // END set_expiration_date
+  
+  function _calc_expiration_date($entry_date=0, $time_diff=FALSE, $time_unit=FALSE, $timestamp=FALSE)
+  {
+    
+    if( ! $entry_date) return 0;
+    
+    $time_diff = ($time_diff) ? $time_diff : $this->_time_diff;
+    $time_unit = ($time_unit) ? $time_unit : $this->_time_unit;
+
+    $d = new DateTime();
+    $d->setTimestamp($entry_date);
+    $expiration_date = clone $d;
+    $expiration_date->modify('+'.$time_diff.' '.$this->time_units[$time_unit]);
+    
+    return ($timestamp) ? $expiration_date->format('U') : $expiration_date->format('Y-m-d H:i');
+    
+  }
   
   
   /**
@@ -151,6 +160,26 @@ class Auto_expire_ext
       );
     }
     
+		$this->EE->cp->add_js_script(array('ui' => 'datepicker'));        
+		$this->EE->cp->add_to_foot('<script type="text/javascript">
+			date_obj = new Date();
+			date_obj_hours = date_obj.getHours();
+			date_obj_mins = date_obj.getMinutes();
+
+			if (date_obj_mins < 10) { date_obj_mins = "0" + date_obj_mins; }
+
+			if (date_obj_hours > 11) {
+				date_obj_hours = date_obj_hours - 12;
+				date_obj_am_pm = " PM";
+			} else {
+				date_obj_am_pm = " AM";
+			}
+
+			date_obj_time = " \'"+date_obj_hours+":"+date_obj_mins+date_obj_am_pm+"\'";
+		</script>');
+    
+    $this->EE->cp->add_to_foot('<script type="text/javascript">$("[name=apply_after], [name=apply_before]").datepicker({dateFormat: $.datepicker.W3C + date_obj_time });</script>');
+
     $vars = array(
       'time_units' => $this->time_units,
       'channels' => $channels
@@ -229,11 +258,42 @@ class Auto_expire_ext
     // Update the settings
     $this->EE->db->where('class', get_class($this))->update('extensions', $data);
     
+    if ($this->EE->input->post('apply'))
+    {
+      $this->_expire_older_entries($this->EE->input->post('apply_after'), $this->EE->input->post('apply_before'));
+    }
+    
     $this->EE->javascript->output('$.ee_notice("Settings saved!", {type : "success"})');
     
   }
   // END save_settings_form
   
+  function _expire_older_entries($after=FALSE, $before=FALSE)
+  {
+    foreach ($this->settings[$this->site_id] as $channel_id => $channel_settings)
+    {
+      if ($this->_auto_expire_channel($channel_id) === FALSE) continue;
+            
+      $addition = $this->_calc_expiration_date(1, $channel_settings['time_diff'], $channel_settings['time_unit'], TRUE) - 1;
+      
+      $sql = "UPDATE exp_channel_titles SET expiration_date = entry_date + $addition WHERE expiration_date = 0 AND channel_id = 2";
+          
+      if ($after)
+      {
+        $after_time = $this->EE->localize->convert_human_date_to_gmt($after);
+        $sql .= " AND entry_date > $after_time";
+      }
+      
+      if ($before)
+      {
+        $before_time = $this->EE->localize->convert_human_date_to_gmt($before);
+        $sql .= " AND `entry_date` < $before_time";
+      }
+      
+      $this->EE->db->query($sql);
+    }
+    
+  }
   
   function _fetch_preferences($channel_id)
   {
@@ -246,7 +306,6 @@ class Auto_expire_ext
       'status' => 0,
       'end_at' => 0,      
       'which' => ''
-
     );
             
     if(isset($this->settings[$this->site_id]) && isset($this->settings[$this->site_id][$channel_id]))
@@ -269,17 +328,17 @@ class Auto_expire_ext
   function _auto_expire_channel($channel_id)
   {
     
-    if( ! $channel_id ) return false;
+    if( ! $channel_id ) return FALSE;
     
     $prefs = $this->_fetch_preferences($channel_id);
     
-    if($prefs['time_diff'] === 0) return false;
+    if($prefs['time_diff'] === 0) return FALSE;
 
     $this->_time_diff = $prefs['time_diff'];
     $this->_time_unit = $prefs['time_unit'];    
     $this->_status = $prefs['status'];    
 
-    return ! $this->_time_diff || ! $this->_time_unit ? false : true;
+    return ! $this->_time_diff || ! $this->_time_unit ? FALSE : TRUE;
     
   }
   // END	_auto_expire_channel	

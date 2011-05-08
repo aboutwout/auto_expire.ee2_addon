@@ -17,6 +17,14 @@ table.nostyles tbody tr td {vertical-align:top !important;}
 .nostyles div {position:relative;}
 .nostyles div label {font-weight:normal;margin-bottom:.5em;display:block;}
 .nostyles label input[type=radio] {margin-right:5px;position:relative;top:1px;}
+
+.apply-box {
+  border:1px solid #eee;
+  padding:10px;
+  margin-bottom:20px;
+}
+.apply-box input[type=text] {display:inline;width:10em;margin:0 5px;}
+.apply-box input[type=checkbox] {margin-right:5px;}
 </style>
 <script>
 $(function() {});
@@ -82,6 +90,9 @@ $(function() {});
   ?>
   </tbody>
 </table>
+<div class="apply-box">
+  <input type="checkbox" name="apply" value="y" /> Apply to all entries <label>after <input type="text" name="apply_after" /></label> and/or <label>before <input type="text" name="apply_before" /></label>
+</div>
 <input type="submit" value="Save settings" class="submit" />
 <?=  form_close(); ?>
 <?php endif; ?>
