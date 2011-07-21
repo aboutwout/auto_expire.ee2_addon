@@ -13,14 +13,14 @@
 * 
 */
 
-if ( ! defined('EXT')) { exit('Invalid file request'); }
+if ( ! defined('BASEPATH')) { exit('Invalid file request'); }
 
 class Auto_expire_ext
 {
   public $settings            = array();
   
   public $name                = 'Auto Expire';
-  public $version             = 2.6;
+  public $version             = 2.7;
   public $description         = "Automatically set an entry's expiration date.";
   public $settings_exist      = 'y';
   public $docs_url            = '';
@@ -67,20 +67,18 @@ class Auto_expire_ext
   /**
   * Set the expiration date if needed
   */
-  function set_expiration_date($channel_id=0, $autosave=false)
+  function set_expiration_date($channel_id=0, $autosave=FALSE)
   {    
     
-    if(!$channel_id || $autosave === true) return;
+    if ( ! $channel_id || $autosave === TRUE) return;
        
     $expiration_date_in = $this->EE->input->post('expiration_date') ? $this->EE->input->post('expiration_date') : false;
     $entry_date = $this->EE->input->post('entry_date');
-    
+        
     // channel has auto expire settings set and has no expiration date set
     if ( $this->_auto_expire_channel($channel_id) && ! $expiration_date_in )
-    {
-      $entry_date = is_numeric($entry_date) ? $entry_date : $this->EE->localize->convert_human_date_to_gmt($entry_date);
-      
-      $expiration_date = $this->_calc_expiration_date($entry_date);
+    {      
+      $expiration_date = $this->_calc_expiration_date($entry_date, NULL, NULL, TRUE);
       
       $this->EE->api_channel_entries->data['expiration_date'] = $expiration_date;
       $_POST['expiration_date'] = $expiration_date;      
@@ -112,14 +110,17 @@ class Auto_expire_ext
   
   function _calc_expiration_date($entry_date=0, $time_diff=FALSE, $time_unit=FALSE, $timestamp=FALSE)
   {
-    
     if( ! $entry_date) return 0;
+    
+    $entry_date = is_numeric($entry_date) ? $entry_date : $this->EE->localize->convert_human_date_to_gmt($entry_date);
     
     $time_diff = ($time_diff) ? $time_diff : $this->_time_diff;
     $time_unit = ($time_unit) ? $time_unit : $this->_time_unit;
 
-    $d = new DateTime();
+    $d = new AeDateTime();
     $d->setTimestamp($entry_date);
+    $d->setTimezone(new DateTimeZone('Europe/London'));
+    
     $expiration_date = clone $d;
     $expiration_date->modify('+'.$time_diff.' '.$this->time_units[$time_unit]);
     
@@ -272,11 +273,12 @@ class Auto_expire_ext
   {
     foreach ($this->settings[$this->site_id] as $channel_id => $channel_settings)
     {
-      if ($this->_auto_expire_channel($channel_id) === FALSE) continue;
-            
-      $addition = $this->_calc_expiration_date(1, $channel_settings['time_diff'], $channel_settings['time_unit'], TRUE) - 1;
       
-      $sql = "UPDATE exp_channel_titles SET expiration_date = entry_date + $addition WHERE expiration_date = 0 AND channel_id = 2";
+      if ($this->_auto_expire_channel($channel_id) === FALSE) continue;
+      
+      $addition = $this->_calc_expiration_date(1, $channel_settings['time_diff'], $channel_settings['time_unit'], TRUE) - 1;
+
+      $sql = "UPDATE exp_channel_titles SET expiration_date = entry_date + $addition WHERE expiration_date = 0 AND channel_id = $channel_id";
           
       if ($after)
       {
@@ -289,8 +291,9 @@ class Auto_expire_ext
         $before_time = $this->EE->localize->convert_human_date_to_gmt($before);
         $sql .= " AND `entry_date` < $before_time";
       }
-      
+            
       $this->EE->db->query($sql);
+      
     }
     
   }
@@ -338,7 +341,7 @@ class Auto_expire_ext
     $this->_time_unit = $prefs['time_unit'];    
     $this->_status = $prefs['status'];    
 
-    return ! $this->_time_diff || ! $this->_time_unit ? FALSE : TRUE;
+    return ( ! $this->_time_diff OR ! $this->_time_unit) ? FALSE : TRUE;
     
   }
   // END	_auto_expire_channel	
@@ -447,4 +450,27 @@ class Auto_expire_ext
 	 
 }
 // END CLASS
-?>
+
+if ( ! method_exists('DateTime', 'setTimestamp') )
+{
+  class AeDateTime extends DateTime
+  {
+
+    public function setTimestamp( $timestamp )
+    {
+      $date = getdate( ( int ) $timestamp );
+      $this->setDate( $date['year'] , $date['mon'] , $date['mday'] );
+      $this->setTime( $date['hours'] , $date['minutes'] , $date['seconds'] );
+    }    
+
+    public function getTimestamp()
+    {
+      return $this->format( 'U' );
+    }
+
+  }
+}
+else
+{
+  class AeDateTime extends DateTime { }
+}
